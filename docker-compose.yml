@@ -1,0 +1,19 @@
+version: "3"
+services:
+  satelles_node_backend:
+    image: aymericbernard/satelles-node:0.1.0
+    ports:
+      - "4061:4061"
+    container_name: satelles_node_backend
+    restart: always
+    networks:
+      - proxy
+    environment:
+      - PORT=4060
+      - VIRTUAL_HOST=satelles-node.kyr.pw
+      - LETSENCRYPT_HOST=satelles-node.kyr.pw
+      - LETSENCRYPT_EMAIL=example@example.com
+networks:
+  proxy:
+    external:
+      name: nginx-proxy
