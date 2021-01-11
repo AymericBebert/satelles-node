@@ -1,12 +1,13 @@
 import bodyParser from 'body-parser';
 import cors from 'cors';
+import {exec} from 'child_process';
 import express from 'express';
 import {createServer, Server as HttpServer} from 'http';
-import {emitEvent, fromEventTyped} from './events';
-import {loggerMiddleware} from './middlewares/logger';
-import {configuration, version} from './version';
-import {defaultDeviceId, defaultDeviceName, defaultRoomName, defaultRoomToken, defaultServerUrl} from './constants';
 import {io, Socket} from 'socket.io-client';
+import {defaultDeviceId, defaultDeviceName, defaultRoomName, defaultRoomToken, defaultServerUrl} from './constants';
+import {loggerMiddleware} from './middlewares/logger';
+import {emitEvent, fromEventTyped} from './events';
+import {configuration, version} from './version';
 
 // Get config from env
 const deviceId = process.env.DEVICE_ID || defaultDeviceId;
@@ -49,12 +50,32 @@ fromEventTyped(socket, 'connect').subscribe(() => {
             name: deviceName,
             commands: [
                 {
-                    name: 'Example action',
-                    type: 'info'
+                    name: 'macOS controls',
+                    type: 'complex',
+                    args: [
+                        {
+                            name: 'Volume',
+                            type: 'number',
+                            numberMin: 0,
+                            numberMax: 100,
+                            numberStep: 1,
+                        },
+                    ],
                 }
             ],
         },
     });
+});
+
+fromEventTyped(socket, 'imperium action').subscribe(action => {
+    if (action.commandName == 'macOS controls') {
+        (action.args || []).forEach(arg => {
+            if (arg.name == 'Volume') {
+                const volume = arg?.numberValue ?? 10;
+                exec(`osascript -e 'set volume output volume ${volume} --100%'`)
+            }
+        })
+    }
 });
 
 http.listen(port, () => console.log(`Listening on port ${port}!`));
