@@ -39,9 +39,12 @@ app.get('/healthCheck', (request, response) => {
     response.send({hostname: request.hostname, status: 'ok', version, configuration});
 });
 
+console.log(`Connecting to ${serverUrl}...`)
 const socket: Socket = io(serverUrl);
 
 fromEventTyped(socket, 'connect').subscribe(() => {
+    console.log(`Connected to socket at ${serverUrl}`)
+
     emitEvent(socket, 'satelles join', {
         token: roomToken,
         roomName: roomName,
