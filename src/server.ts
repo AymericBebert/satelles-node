@@ -1,12 +1,14 @@
 import bodyParser from 'body-parser';
 import cors from 'cors';
-import {exec} from 'child_process';
 import express from 'express';
 import {createServer, Server as HttpServer} from 'http';
+import {BehaviorSubject, Subject} from 'rxjs';
+import {takeUntil} from 'rxjs/operators';
 import {io, Socket} from 'socket.io-client';
 import {defaultDeviceId, defaultDeviceName, defaultRoomName, defaultRoomToken, defaultServerUrl} from './constants';
 import {loggerMiddleware} from './middlewares/logger';
 import {emitEvent, fromEventTyped} from './events';
+import {getVolume, setVolume, volumeCommand} from './utils';
 import {configuration, version} from './version';
 
 // Get config from env
@@ -42,8 +44,24 @@ app.get('/healthCheck', (request, response) => {
 console.log(`Connecting to ${serverUrl}...`)
 const socket: Socket = io(serverUrl);
 
+const connected$ = new Subject<void>();
+
+const curVolume$ = new BehaviorSubject<number>(0);
+const updateVolume = () => void getVolume()
+    .then(res => {
+        if (res !== null && res !== curVolume$.value) {
+            curVolume$.next(res);
+        }
+    })
+    .catch(err => console.error(err));
+
+updateVolume();
+setInterval(updateVolume, 10000);
+
 fromEventTyped(socket, 'connect').subscribe(() => {
     console.log(`Connected to socket at ${serverUrl}`)
+
+    connected$.next();
 
     emitEvent(socket, 'satelles join', {
         token: roomToken,
@@ -52,30 +70,21 @@ fromEventTyped(socket, 'connect').subscribe(() => {
             id: deviceId,
             name: deviceName,
             commands: [
-                {
-                    name: 'macOS controls',
-                    type: 'complex',
-                    args: [
-                        {
-                            name: 'Volume',
-                            type: 'number',
-                            numberMin: 0,
-                            numberMax: 100,
-                            numberStep: 1,
-                        },
-                    ],
-                }
+                volumeCommand(curVolume$.value),
             ],
         },
     });
+
+    curVolume$
+        .pipe(takeUntil(connected$))
+        .subscribe(cv => emitEvent(socket, 'satelles update', [volumeCommand(cv)]));
 });
 
 fromEventTyped(socket, 'imperium action').subscribe(action => {
-    if (action.commandName == 'macOS controls') {
+    if (action.commandName == '_macos_controls') {
         (action.args || []).forEach(arg => {
             if (arg.name == 'Volume') {
-                const volume = arg?.numberValue ?? 10;
-                exec(`osascript -e 'set volume output volume ${volume} --100%'`)
+                setVolume(arg?.numberValue ?? 10);
             }
         })
     }
