@@ -14,6 +14,7 @@ import {
     LightSetPowerMessage,
     LightSetRgbMessage
 } from './model/light-messages';
+import {ICommand} from './model/satelles';
 import {Lookup} from './ts-yeelight-wifi/lookup';
 import {Yeelight} from './ts-yeelight-wifi/yeelight';
 import {configuration, version} from './version';
@@ -33,6 +34,18 @@ const deviceName = process.env.DEVICE_NAME || config.hub.deviceName;
 console.log(`Connecting to ${serverUrl}...`)
 const socket: Socket = io(serverUrl);
 
+const commandsComparison = (c0: ICommand[], c1: ICommand[]) => JSON.stringify(c0) === JSON.stringify(c1);
+const yeelightState = (yl: Yeelight) => ({
+    id: yl.id,
+    power: yl.power,
+    bright: yl.bright,
+    rgb: yl.rgb,
+});
+const ylStatesHash = (s: { [id: string]: Yeelight }) => JSON.stringify(Object.values(s).map(y => yeelightState(y)));
+const yeelightStatesComparison = (s0: { [id: string]: Yeelight }, s1: { [id: string]: Yeelight }) => {
+    return ylStatesHash(s0) === ylStatesHash(s1);
+};
+
 const connected$ = new Subject<void>();
 
 fromEventTyped(socket, 'connect').subscribe(() => {
@@ -41,6 +54,7 @@ fromEventTyped(socket, 'connect').subscribe(() => {
     connected$.next();
 
     let curVolume = 0;
+    const ylState = Object.values(curLightState$.getValue())[0] || null
 
     emitEvent(socket, 'satelles join', {
         token: roomToken,
@@ -50,41 +64,82 @@ fromEventTyped(socket, 'connect').subscribe(() => {
             name: deviceName,
             commands: [
                 ...(config.commands.indexOf('macos') > -1 ? [volumeCommand(0)] : []),
-                ...(config.commands.indexOf('yeelight') > -1 ? yeelightCommands() : []),
+                ...(config.commands.indexOf('yeelight') > -1 ? yeelightCommands(ylState) : []),
             ],
         },
     });
 
     if (config.commands.indexOf('macos') > -1) {
         interval(10000)
-            .pipe(switchMap(() => getVolume()), takeUntil(connected$))
-            .subscribe(cv => {
-                if (cv !== null && cv !== curVolume) {
-                    curVolume = cv;
-                    emitEvent(socket, 'satelles update', [
-                        ...(config.commands.indexOf('macos') > -1 ? [volumeCommand(cv)] : []),
-                        ...(config.commands.indexOf('yeelight') > -1 ? yeelightCommands() : []),
-                    ]);
-                }
-            });
+            .pipe(
+                switchMap(() => getVolume()),
+                tap(cv => {
+                    if (cv !== null && cv !== curVolume) {
+                        curVolume = cv;
+                    }
+                }),
+                map(() => {
+                    const ylState = Object.values(curLightState$.getValue())[0] || null
+                    return [
+                        ...(config.commands.indexOf('macos') > -1 ? [volumeCommand(curVolume)] : []),
+                        ...(config.commands.indexOf('yeelight') > -1 ? yeelightCommands(ylState) : []),
+                    ];
+                }),
+                distinctUntilChanged(commandsComparison),
+                takeUntil(connected$),
+            )
+            .subscribe(commands => emitEvent(socket, 'satelles update', commands));
     }
 
     if (config.commands.indexOf('yeelight') > -1) {
         lookup$.next();
+
+        curLightState$
+            .pipe(
+                map(states => Object.values(states)[0] || null),
+                map(yl => [
+                    ...(config.commands.indexOf('macos') > -1 ? [volumeCommand(curVolume)] : []),
+                    ...(config.commands.indexOf('yeelight') > -1 ? yeelightCommands(yl) : []),
+                ]),
+                distinctUntilChanged(commandsComparison),
+                takeUntil(connected$),
+            )
+            .subscribe(commands => emitEvent(socket, 'satelles update', commands))
     }
 });
 
 fromEventTyped(socket, 'imperium action').subscribe(action => {
-    if (action.commandName == MACOS_CONTROLS_NAME) {
-        (action.args || []).forEach(arg => {
-            if (arg.name == 'Volume') {
-                setVolume(arg?.numberValue ?? 10);
-            }
-        })
-    }
+    switch (action.commandName) {
+        case MACOS_CONTROLS_NAME :
+            (action.args || []).forEach(arg => {
+                if (arg.name == 'Volume') {
+                    setVolume(arg?.numberValue ?? 10);
+                }
+            });
+            break;
 
-    if (action.commandName == 'YL Blink') {
-        blink$.next();
+        case 'YL Turn On':
+            setPower$.next({power: true, duration: 200});
+            break;
+
+        case 'YL Turn Off':
+            setPower$.next({power: false, duration: 200});
+            break;
+
+        case 'YL Blink':
+            blink$.next();
+            break;
+
+        case 'YL Control':
+            (action.args || []).forEach(arg => {
+                if (arg.name == 'Brightness') {
+                    setBright$.next({bright: arg.numberValue || 50, duration: 200});
+                }
+                if (arg.name == 'Temperature') {
+                    setCT$.next({ct: arg.numberValue || 2500, duration: 200});
+                }
+            });
+            break;
     }
 });
 
@@ -97,6 +152,23 @@ const setBright$ = new BehaviorSubject<LightSetBrightMessage | null>(null);
 const blink$ = new Subject<void>();
 const lookup$ = new Subject<void>();
 const lookupReset$ = new Subject<void>();
+const curLightState$ = new BehaviorSubject<{ [id: string]: Yeelight }>({});
+
+curLightState$
+    .pipe(distinctUntilChanged(yeelightStatesComparison))
+    .subscribe(cls => {
+        if (Object.keys(cls).length === 0) {
+            console.log('YL States is empty');
+            return;
+        }
+        console.log(`YL States of the ${Object.keys(cls).length} entries:`)
+        Object.keys(cls).forEach(k => {
+            const l = cls[k];
+            const rgb = `R ${Math.round(l.rgb.r)}, G ${Math.round(l.rgb.g)}, B ${Math.round(l.rgb.b)}`;
+            console.log(`YL State of ${k}: power ${l.power ? 'ON' : 'OFF'}, ${rgb}`);
+        });
+        console.log('-----');
+    })
 
 // Utils for lights
 
@@ -147,6 +219,11 @@ lookup$.subscribe(() => {
     look.on('detected', (light: Yeelight) => {
         console.log(`Yeelight detected: id=${light.id} name=${light.name}`);
 
+        if (Object.keys(curLightState$.getValue()).indexOf(light.id) !== -1) {
+            console.log(`Seems that Yeelight id=${light.id} is already connected`);
+            return;
+        }
+
         connectedLights$.next(look.pruneLights());
         blinkLight(light);
 
@@ -165,8 +242,12 @@ lookup$.subscribe(() => {
         });
 
         light.fromEvent('stateUpdate').subscribe(l => {
-            // const rgb = `R ${Math.round(l.rgb.r)}, G ${Math.round(l.rgb.g)}, B ${Math.round(l.rgb.b)}`;
-            // console.log(`light stateUpdate: ${light.id}: power ${l.power}, ${rgb}`);
+            const rgb = `R ${Math.round(l.rgb.r)}, G ${Math.round(l.rgb.g)}, B ${Math.round(l.rgb.b)}`;
+            console.log(`light stateUpdate: ${light.id}: power ${l.power ? 'ON' : 'OFF'}, ${rgb}`);
+            curLightState$.next({
+                ...curLightState$.getValue(),
+                [l.id]: l,
+            });
         });
 
         light.fromEvent('failed').subscribe(err => {
@@ -174,14 +255,20 @@ lookup$.subscribe(() => {
         });
 
         light.fromEvent('disconnected').subscribe(() => {
-            // console.log(`light disconnected: ${light.id}`);
+            console.log(`light disconnected: ${light.id}`);
+            const oldState = curLightState$.getValue();
+            curLightState$.next(
+                Object.keys(oldState)
+                    .filter(key => key !== light.id)
+                    .reduce((obj, key) => ({...obj, [key]: oldState[key]}), {})
+            )
             connectedLights$.next(look.pruneLights());
+            exited$.next();
+            exited$.complete();
         });
 
         light.fromEvent('destroyed').pipe(take(1)).subscribe(() => {
             console.error(`Yeelight removed: ${light.id}`);
-            exited$.next();
-            exited$.complete();
         });
 
         // From subjects

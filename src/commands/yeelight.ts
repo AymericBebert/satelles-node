@@ -1,7 +1,20 @@
 import {ICommand} from '../model/satelles';
+import {Yeelight} from '../ts-yeelight-wifi/yeelight';
+import {rgb2temp} from '../ts-yeelight-wifi/color-temp';
 
-export function yeelightCommands(): ICommand[] {
+export function yeelightCommands(yl: Yeelight | null): ICommand[] {
+    if (yl === null) {
+        return [];
+    }
+    const powerCommand: ICommand[] = yl.power ? [{
+        name: 'YL Turn Off',
+        type: 'action',
+    }] : [{
+        name: 'YL Turn On',
+        type: 'action',
+    }];
     return [
+        ...powerCommand,
         {
             name: 'YL Blink',
             type: 'action',
@@ -13,10 +26,18 @@ export function yeelightCommands(): ICommand[] {
                 {
                     name: 'Brightness',
                     type: 'number',
-                    numberValue: 42,
+                    numberValue: yl.bright,
                     numberMin: 0,
                     numberMax: 100,
                     numberStep: 1,
+                },
+                {
+                    name: 'Temperature',
+                    type: 'number',
+                    numberValue: rgb2temp([yl.rgb.r, yl.rgb.g, yl.rgb.b]),
+                    numberMin: 1700,
+                    numberMax: 6500,
+                    numberStep: 100,
                 },
             ],
         },
