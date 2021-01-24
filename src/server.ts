@@ -77,25 +77,29 @@ fromEventTyped(socket, 'connect').subscribe(() => {
             id: deviceId,
             name: deviceName,
             commands: [
-                volumeCommand(0),
-                ...yeelightCommands(),
+                ...(config.commands.indexOf('macos') > -1 ? [volumeCommand(0)] : []),
+                ...(config.commands.indexOf('yeelight') > -1 ? yeelightCommands() : []),
             ],
         },
     });
 
-    interval(10000)
-        .pipe(switchMap(() => getVolume()), takeUntil(connected$))
-        .subscribe(cv => {
-            if (cv !== null && cv !== curVolume) {
-                curVolume = cv;
-                emitEvent(socket, 'satelles update', [
-                    volumeCommand(cv),
-                    ...yeelightCommands(),
-                ]);
-            }
-        });
+    if (config.commands.indexOf('macos') > -1) {
+        interval(10000)
+            .pipe(switchMap(() => getVolume()), takeUntil(connected$))
+            .subscribe(cv => {
+                if (cv !== null && cv !== curVolume) {
+                    curVolume = cv;
+                    emitEvent(socket, 'satelles update', [
+                        ...(config.commands.indexOf('macos') > -1 ? [volumeCommand(cv)] : []),
+                        ...(config.commands.indexOf('yeelight') > -1 ? yeelightCommands() : []),
+                    ]);
+                }
+            });
+    }
 
-    lookup$.next();
+    if (config.commands.indexOf('yeelight') > -1) {
+        lookup$.next();
+    }
 });
 
 fromEventTyped(socket, 'imperium action').subscribe(action => {
@@ -119,7 +123,7 @@ const setHSV$ = new BehaviorSubject<LightSetHsvMessage | null>(null);
 const setCT$ = new BehaviorSubject<LightSetCtMessage | null>(null);
 const setBright$ = new BehaviorSubject<LightSetBrightMessage | null>(null);
 const blink$ = new Subject<void>();
-const lookup$ = new BehaviorSubject<void>(void 0);
+const lookup$ = new Subject<void>();
 const lookupReset$ = new Subject<void>();
 
 // Utils for lights
