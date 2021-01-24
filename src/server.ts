@@ -1,14 +1,9 @@
-import bodyParser from 'body-parser';
-import cors from 'cors';
-import express from 'express';
 import fs from 'fs'
-import {createServer, Server as HttpServer} from 'http';
 import {BehaviorSubject, interval, of, Subject} from 'rxjs';
 import {delay, distinctUntilChanged, filter, map, startWith, switchMap, take, takeUntil, tap} from 'rxjs/operators';
 import {io, Socket} from 'socket.io-client';
 import {load} from 'js-yaml';
 import {RerumNodeConfig} from './config';
-import {loggerMiddleware} from './middlewares/logger';
 import {emitEvent, fromEventTyped} from './events';
 import {getVolume, MACOS_CONTROLS_NAME, setVolume, volumeCommand} from './commands/macos-volume';
 import {yeelightCommands} from './commands/yeelight';
@@ -23,6 +18,8 @@ import {Lookup} from './ts-yeelight-wifi/lookup';
 import {Yeelight} from './ts-yeelight-wifi/yeelight';
 import {configuration, version} from './version';
 
+console.log(`Starting satelles-node version ${version}, configuration ${configuration}...`)
+
 // Ugly config load
 const config = load(fs.readFileSync(`${__dirname}/../config.yml`, 'utf8')) as RerumNodeConfig;
 
@@ -32,31 +29,6 @@ const roomToken = process.env.ROOM_TOKEN || config.hub.roomToken;
 const roomName = process.env.ROOM_NAME || config.hub.roomName;
 const deviceId = process.env.DEVICE_ID || config.hub.deviceId;
 const deviceName = process.env.DEVICE_NAME || config.hub.deviceName;
-const port = process.env.PORT || 4061;
-
-// Creating web server
-const app = express();
-const http: HttpServer = createServer(app);
-
-// HTTP middleware and CORS
-app.use(loggerMiddleware);
-
-const corsAllowedOrigin = process.env.CORS_ALLOWED_ORIGIN || '';
-app.use(
-    (req, res, next) => next(),
-    corsAllowedOrigin
-        ? cors({origin: corsAllowedOrigin.split(','), optionsSuccessStatus: 200})
-        : cors(),
-);
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({extended: true}));
-
-// HTTP healthCheck route
-app.get('/healthCheck', (request, response) => {
-    response.send({hostname: request.hostname, status: 'ok', version, configuration});
-});
-
-http.listen(port, () => console.log(`Listening on port ${port}!`));
 
 console.log(`Connecting to ${serverUrl}...`)
 const socket: Socket = io(serverUrl);
