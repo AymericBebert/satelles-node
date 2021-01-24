@@ -1,9 +1,5 @@
 import {CommandArgType} from './satelles';
 
-export interface IJoinRoom {
-    token: string;
-}
-
 export interface IArgValue {
     name: string;
     type: CommandArgType;
