@@ -1,5 +1,7 @@
 import {exec} from 'child_process';
-import {ICommand} from './model/satelles';
+import {ICommand} from '../model/satelles';
+
+export const MACOS_CONTROLS_NAME = 'macOS Controls';
 
 export function getVolume(): Promise<number | null> {
     return new Promise<number | null>((resolve, reject) => {
@@ -24,7 +26,7 @@ export function setVolume(volume: number): void {
 
 export function volumeCommand(curVolume: number): ICommand {
     return {
-        name: '_macos_controls',
+        name: MACOS_CONTROLS_NAME,
         type: 'complex',
         args: [
             {

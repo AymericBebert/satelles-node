@@ -1,0 +1,10 @@
+hub:
+  serverUrl: 'http://localhost:4060'
+  roomToken: '12345678'
+  roomName: 'Bebert Control Room'
+  deviceId: 'satelles-node-bebert-dev'
+  deviceName: 'Node Satelles (dev)'
+
+commands:
+  - macos
+  - yeelight

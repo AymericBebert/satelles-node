@@ -1,22 +1,37 @@
 import bodyParser from 'body-parser';
 import cors from 'cors';
 import express from 'express';
+import fs from 'fs'
 import {createServer, Server as HttpServer} from 'http';
-import {BehaviorSubject, Subject} from 'rxjs';
-import {takeUntil} from 'rxjs/operators';
+import {BehaviorSubject, interval, of, Subject} from 'rxjs';
+import {delay, distinctUntilChanged, filter, map, startWith, switchMap, take, takeUntil, tap} from 'rxjs/operators';
 import {io, Socket} from 'socket.io-client';
-import {defaultDeviceId, defaultDeviceName, defaultRoomName, defaultRoomToken, defaultServerUrl} from './constants';
+import {load} from 'js-yaml';
+import {RerumNodeConfig} from './config';
 import {loggerMiddleware} from './middlewares/logger';
 import {emitEvent, fromEventTyped} from './events';
-import {getVolume, setVolume, volumeCommand} from './utils';
+import {getVolume, MACOS_CONTROLS_NAME, setVolume, volumeCommand} from './commands/macos-volume';
+import {yeelightCommands} from './commands/yeelight';
+import {
+    LightSetBrightMessage,
+    LightSetCtMessage,
+    LightSetHsvMessage,
+    LightSetPowerMessage,
+    LightSetRgbMessage
+} from './model/light-messages';
+import {Lookup} from './ts-yeelight-wifi/lookup';
+import {Yeelight} from './ts-yeelight-wifi/yeelight';
 import {configuration, version} from './version';
 
+// Ugly config load
+const config = load(fs.readFileSync(`${__dirname}/../config.yml`, 'utf8')) as RerumNodeConfig;
+
 // Get config from env
-const deviceId = process.env.DEVICE_ID || defaultDeviceId;
-const deviceName = process.env.DEVICE_NAME || defaultDeviceName;
-const serverUrl = process.env.SERVER_URL || defaultServerUrl;
-const roomToken = process.env.ROOM_TOKEN || defaultRoomToken;
-const roomName = process.env.ROOM_NAME || defaultRoomName;
+const serverUrl = process.env.SERVER_URL || config.hub.serverUrl;
+const roomToken = process.env.ROOM_TOKEN || config.hub.roomToken;
+const roomName = process.env.ROOM_NAME || config.hub.roomName;
+const deviceId = process.env.DEVICE_ID || config.hub.deviceId;
+const deviceName = process.env.DEVICE_NAME || config.hub.deviceName;
 const port = process.env.PORT || 4061;
 
 // Creating web server
@@ -41,27 +56,19 @@ app.get('/healthCheck', (request, response) => {
     response.send({hostname: request.hostname, status: 'ok', version, configuration});
 });
 
+http.listen(port, () => console.log(`Listening on port ${port}!`));
+
 console.log(`Connecting to ${serverUrl}...`)
 const socket: Socket = io(serverUrl);
 
 const connected$ = new Subject<void>();
 
-const curVolume$ = new BehaviorSubject<number>(0);
-const updateVolume = () => void getVolume()
-    .then(res => {
-        if (res !== null && res !== curVolume$.value) {
-            curVolume$.next(res);
-        }
-    })
-    .catch(err => console.error(err));
-
-updateVolume();
-setInterval(updateVolume, 10000);
-
 fromEventTyped(socket, 'connect').subscribe(() => {
     console.log(`Connected to socket at ${serverUrl}`)
 
     connected$.next();
+
+    let curVolume = 0;
 
     emitEvent(socket, 'satelles join', {
         token: roomToken,
@@ -70,24 +77,166 @@ fromEventTyped(socket, 'connect').subscribe(() => {
             id: deviceId,
             name: deviceName,
             commands: [
-                volumeCommand(curVolume$.value),
+                volumeCommand(0),
+                ...yeelightCommands(),
             ],
         },
     });
 
-    curVolume$
-        .pipe(takeUntil(connected$))
-        .subscribe(cv => emitEvent(socket, 'satelles update', [volumeCommand(cv)]));
+    interval(10000)
+        .pipe(switchMap(() => getVolume()), takeUntil(connected$))
+        .subscribe(cv => {
+            if (cv !== null && cv !== curVolume) {
+                curVolume = cv;
+                emitEvent(socket, 'satelles update', [
+                    volumeCommand(cv),
+                    ...yeelightCommands(),
+                ]);
+            }
+        });
+
+    lookup$.next();
 });
 
 fromEventTyped(socket, 'imperium action').subscribe(action => {
-    if (action.commandName == '_macos_controls') {
+    if (action.commandName == MACOS_CONTROLS_NAME) {
         (action.args || []).forEach(arg => {
             if (arg.name == 'Volume') {
                 setVolume(arg?.numberValue ?? 10);
             }
         })
     }
+
+    if (action.commandName == 'YL Blink') {
+        blink$.next();
+    }
 });
 
-http.listen(port, () => console.log(`Listening on port ${port}!`));
+// Lights commands
+const setPower$ = new BehaviorSubject<LightSetPowerMessage | null>(null);
+const setRGB$ = new BehaviorSubject<LightSetRgbMessage | null>(null);
+const setHSV$ = new BehaviorSubject<LightSetHsvMessage | null>(null);
+const setCT$ = new BehaviorSubject<LightSetCtMessage | null>(null);
+const setBright$ = new BehaviorSubject<LightSetBrightMessage | null>(null);
+const blink$ = new Subject<void>();
+const lookup$ = new BehaviorSubject<void>(void 0);
+const lookupReset$ = new Subject<void>();
+
+// Utils for lights
+
+function onOperationSuccess() {
+    // console.log('success');
+}
+
+function onOperationFailed(error: string) {
+    console.log(`failed: ${error}`);
+}
+
+function valueNotNull<T>(value: null | undefined | T): value is T {
+    return value !== null && value !== undefined;
+}
+
+function blinkLight(light: Yeelight) {
+    const curState = light.getState();
+    of(null).pipe(
+        tap(() => !curState.power && light.setPower(true, 200).catch(onOperationFailed)),
+        tap(() => light.setBright(1, 200).catch(onOperationFailed)),
+        delay(200),
+        tap(() => light.setBright(100, 200).catch(onOperationFailed)),
+        delay(200),
+        tap(() => light.setBright(curState.bright, 200).catch(onOperationFailed)),
+        tap(() => !curState.power && light.setPower(false, 200).catch(onOperationFailed)),
+    ).subscribe();
+}
+
+// Communication with lights
+
+const look: Lookup = new Lookup(20 * 1000, false);
+
+const connectedLights$ = new BehaviorSubject<Yeelight[]>([]);
+
+connectedLights$
+    .pipe(map(lights => lights.length), startWith(0), distinctUntilChanged())
+    .subscribe(nbConnected => {
+        console.log(`Number of Yeelight connected: ${nbConnected}`);
+        // emitEvent(socket, 'ambient number connected', {id: deviceId, nbConnected});
+    });
+
+lookup$.subscribe(() => {
+    console.log('lookup$ called');
+
+    lookupReset$.next();
+    look.init();
+
+    look.on('detected', (light: Yeelight) => {
+        console.log(`Yeelight detected: id=${light.id} name=${light.name}`);
+
+        connectedLights$.next(look.pruneLights());
+        blinkLight(light);
+
+        const exited$ = new Subject<void>();
+
+        lookupReset$.pipe(take(1)).subscribe(() => {
+            console.log('lookupReset$ called, destroying');
+            light.destroy();
+        });
+
+        // Yeelight events
+
+        light.fromEvent('connected').subscribe(() => {
+            console.log(`light connected: ${light.id}`);
+            connectedLights$.next(look.pruneLights());
+        });
+
+        light.fromEvent('stateUpdate').subscribe(l => {
+            // const rgb = `R ${Math.round(l.rgb.r)}, G ${Math.round(l.rgb.g)}, B ${Math.round(l.rgb.b)}`;
+            // console.log(`light stateUpdate: ${light.id}: power ${l.power}, ${rgb}`);
+        });
+
+        light.fromEvent('failed').subscribe(err => {
+            console.error(`light error: ${light.id}:`, err);
+        });
+
+        light.fromEvent('disconnected').subscribe(() => {
+            // console.log(`light disconnected: ${light.id}`);
+            connectedLights$.next(look.pruneLights());
+        });
+
+        light.fromEvent('destroyed').pipe(take(1)).subscribe(() => {
+            console.error(`Yeelight removed: ${light.id}`);
+            exited$.next();
+            exited$.complete();
+        });
+
+        // From subjects
+
+        setPower$.pipe(filter(valueNotNull), takeUntil(exited$)).subscribe(data => {
+            console.log(`Set power: ${JSON.stringify(data)}`);
+            light.setPower(data.power, data.duration).then(onOperationSuccess).catch(onOperationFailed);
+        });
+
+        setRGB$.pipe(filter(valueNotNull), takeUntil(exited$)).subscribe(data => {
+            console.log(`Set RGB: ${JSON.stringify(data)}`);
+            light.setRGB(data.rgb, data.duration).then(onOperationSuccess).catch(onOperationFailed);
+        });
+
+        setHSV$.pipe(filter(valueNotNull), takeUntil(exited$)).subscribe(data => {
+            console.log(`Set HSV: ${JSON.stringify(data)}`);
+            light.setHSV(data.hsv, data.duration).then(onOperationSuccess).catch(onOperationFailed);
+        });
+
+        setCT$.pipe(filter(valueNotNull), takeUntil(exited$)).subscribe(data => {
+            console.log(`Set CT: ${JSON.stringify(data)}`);
+            light.setCT(data.ct, data.duration).then(onOperationSuccess).catch(onOperationFailed);
+        });
+
+        setBright$.pipe(filter(valueNotNull), takeUntil(exited$)).subscribe(data => {
+            console.log(`Set bright: ${JSON.stringify(data)}`);
+            light.setBright(data.bright, data.duration).then(onOperationSuccess).catch(onOperationFailed);
+        });
+
+        blink$.pipe(takeUntil(exited$)).subscribe(() => {
+            blinkLight(light);
+        });
+    });
+});
