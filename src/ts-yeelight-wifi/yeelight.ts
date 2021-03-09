@@ -1,10 +1,10 @@
 import Color from 'color';
-import {EventEmitter} from 'events';
+import { EventEmitter } from 'events';
 import net from 'net';
-import {SsdpHeaders} from 'node-ssdp';
-import {fromEvent, Observable} from 'rxjs';
-import {FromEventTarget} from 'rxjs/internal/observable/fromEvent';
-import {temp2rgb} from './color-temp';
+import { SsdpHeaders } from 'node-ssdp';
+import { fromEvent, Observable } from 'rxjs';
+import { FromEventTarget } from 'rxjs/internal/observable/fromEvent';
+import { temp2rgb } from './color-temp';
 
 const REQUEST_TIMEOUT = 5000;
 const HEARTBEAT_INTERVAL = 10000;
@@ -15,7 +15,7 @@ const SOCKET_TIMEOUT = 32000;
 interface YeelightMessage {
     id: number;
     method: string;
-    params: Array<string | number>;
+    params: (string | number)[];
     timeout: NodeJS.Timeout;
     resolve: (value?: any) => void;
     reject: (reason?: any) => void;
@@ -50,7 +50,6 @@ interface YeelightColorMessage {
     BRIGHT: string;
 }
 
-
 interface YeelightEventTypes {
     'connect': undefined;
     'connected': undefined;
@@ -59,8 +58,28 @@ interface YeelightEventTypes {
     'destroyed': undefined;
     'stateUpdate': Yeelight;
     'update': { response: any };
-    'success': { id: number, method: string, params: Array<string | number>, response: any };
-    'timeout': { id: number, method: string, params: Array<string | number> };
+    'success': { id: number, method: string, params: (string | number)[], response: any };
+    'timeout': { id: number, method: string, params: (string | number)[] };
+}
+
+interface YeelightResponse {
+    id?: number;
+    result?: string[];
+    method?: string;
+    params?: {
+        name?: string;
+        power?: string;
+        bright?: number;
+        color_mode?: number;
+        rgb?: number;
+        hue?: number;
+        sat?: number;
+        ct?: number;
+    };
+    error?: {
+        code: number;
+        message: string;
+    };
 }
 
 export class Yeelight extends EventEmitter {
@@ -96,12 +115,8 @@ export class Yeelight extends EventEmitter {
 
     constructor(ssdpMessage?: YeelightSsdpMessage) {
         super();
-
-        // init
         if (ssdpMessage) {
             this.updateBySSDPMessage(ssdpMessage);
-
-            // connect
             this.connect();
         }
     }
@@ -435,132 +450,124 @@ export class Yeelight extends EventEmitter {
         // sometimes there are multiple messages in one message
         const splits = responses.split('\r\n');
 
-        splits.forEach((response: string) => {
-            // skip empty
-            if (!response || response === '') {
+        splits.forEach(response => {
+            if (!response) {
                 return;
             }
 
-            // parse json
-            let json = null;
+            let json: YeelightResponse = {};
             try {
-                json = JSON.parse(response);
+                // console.log(`parseResponse: ${response}`);
+                json = JSON.parse(response) as YeelightResponse;
             } catch (e) {
                 console.error(e);
                 console.log(response);
                 this.emitTyped('failed', {reason: 'response is not parsable', response});
+                return;
             }
 
-            if (json) {
-                const id = json.id;
-                const method = json.method;
-                const params = json.params;
-                const result = json.result;
-
-                // ******************** notification message ********************
-                if (method === 'props') {
-                    if ('power' in params) {
-                        this.updatePower(params.power);
-                    }
-
-                    if ('rgb' in params) {
-                        this.updateByRGB(params.rgb);
-                    }
-
-                    if ('bright' in params) {
-                        this.updateBright(params.bright);
-                    }
-
-                    if ('ct' in params) {
-                        this.updateCT(params.ct);
-                    }
-
-                    if ('hue' in params && 'sat' in params) {
-                        this.updateHSV(params.hue, params.sat);
-                    }
-
-                    if ('name' in params) {
-                        this.name = params.name;
-                    }
-
-                    this.emitTyped('update', {response: json});
+            const id = json.id;
+            const method = json.method;
+            const params = json.params || {};
+            const result = json.result || [];
+            if (method === 'props') {
+                if (params.power) {
+                    this.updatePower(params.power);
                 }
 
-                // ******************** get_prop result ********************
-                if (result && id && this.messages[id] && this.messages[id].method === 'get_prop') {
-                    const mParams = this.messages[id].params;
-                    const values = result;
+                if (params.rgb) {
+                    this.updateByRGB(params.rgb.toString(10));
+                }
 
-                    if (mParams.length === values.length) {
-                        // generate object out of mParams and result-values
-                        const obj: { [key: string]: any } = {};
-                        for (let i = 0; i < mParams.length; ++i) {
-                            const key = mParams[i];
-                            obj[key] = values[i];
-                        }
+                if (params.bright) {
+                    this.updateBright(params.bright.toString(10));
+                }
 
-                        // detect type (if Yeelight instance was created by host and port only - without ssdp)
-                        // if the result of rgb is "" --> this means that rgb value is not supported
-                        // (otherwise it will be "0" -> "16777215")
-                        if (obj.rgb === '') {
-                            this.type = 'white';
-                        } else {
-                            this.type = 'color';
-                        }
+                if (params.ct) {
+                    this.updateCT(params.ct.toString(10));
+                }
 
-                        if ('power' in obj) {
-                            this.updatePower(obj.power);
-                        }
+                if (params.hue && params.sat) {
+                    this.updateHSV(params.hue.toString(10), params.sat.toString(10));
+                }
 
-                        if ('color_mode' in obj) {
-                            if (obj.color_mode === '1' && 'rgb' in obj) {
-                                this.updateByRGB(obj.rgb, obj.bright);
-                            } else if (obj.color_mode === '2' && 'ct' in obj) {
-                                this.updateCT(obj.ct, obj.bright);
-                            } else if (obj.color_mode === '3' && 'hue' in obj && 'sat' in obj) {
-                                this.updateHSV(obj.hue, obj.sat, obj.bright);
-                            }
-                        } else {
-                            if ('bright' in obj) {
-                                this.updateBright(obj.bright);
-                            }
+                if (params.name) {
+                    this.name = params.name;
+                }
+
+                this.emitTyped('update', {response: json});
+            }
+            if (result && id && this.messages[id] && this.messages[id].method === 'get_prop') {
+                const mParams = this.messages[id].params;
+                const values = result;
+
+                if (mParams.length === values.length) {
+                    // generate object out of mParams and result-values
+                    const obj: { [key: string]: any } = {};
+                    for (let i = 0; i < mParams.length; ++i) {
+                        const key = mParams[i];
+                        obj[key] = values[i];
+                    }
+
+                    // detect type (if Yeelight instance was created by host and port only - without ssdp)
+                    // if the result of rgb is "" --> this means that rgb value is not supported
+                    // (otherwise it will be "0" -> "16777215")
+                    if (obj.rgb === '') {
+                        this.type = 'white';
+                    } else {
+                        this.type = 'color';
+                    }
+
+                    if ('power' in obj) {
+                        this.updatePower(obj.power);
+                    }
+
+                    if ('color_mode' in obj) {
+                        if (obj.color_mode === '1' && 'rgb' in obj) {
+                            this.updateByRGB(obj.rgb, obj.bright);
+                        } else if (obj.color_mode === '2' && 'ct' in obj) {
+                            this.updateCT(obj.ct, obj.bright);
+                        } else if (obj.color_mode === '3' && 'hue' in obj && 'sat' in obj) {
+                            this.updateHSV(obj.hue, obj.sat, obj.bright);
                         }
                     } else {
-                        this.emitTyped('failed', {
-                            reason: 'error on parsing get_prop result --> mParams length != values length',
-                            response,
-                        });
-                        console.error('error on parsing get_prop result --> mParams length != values length');
-                        console.log(mParams);
-                        console.log(values);
+                        if ('bright' in obj) {
+                            this.updateBright(obj.bright);
+                        }
                     }
-                }
-
-                // ******************** command response ********************
-                if (id && this.messages[id]) {
-                    const msg = this.messages[id];
-
-                    clearTimeout(msg.timeout);
-
-                    this.emitTyped('success', {
-                        id: msg.id,
-                        method: msg.method,
-                        params: msg.params,
-                        response: json,
+                } else {
+                    this.emitTyped('failed', {
+                        reason: 'error on parsing get_prop result --> mParams length != values length',
+                        response,
                     });
-
-                    const resolve = msg.resolve;
-
-                    delete this.messages[id];
-
-                    // resolve on the end
-                    resolve(this);
+                    console.error('error on parsing get_prop result --> mParams length != values length');
+                    console.log(mParams);
+                    console.log(values);
                 }
+            }
+            if (id && this.messages[id]) {
+                const msg = this.messages[id];
+
+                clearTimeout(msg.timeout);
+
+                this.emitTyped('success', {
+                    id: msg.id,
+                    method: msg.method,
+                    params: msg.params,
+                    response: json,
+                });
+
+                const resolve = msg.resolve;
+
+                delete this.messages[id];
+
+                // resolve on the end
+                resolve(this);
             }
         });
     }
 
-    private sendCommand(method: string, params: any): Promise<unknown> {
+    private sendCommand(method: string, params: (string | number)[]): Promise<unknown> {
         // connect if not connected
         if (!this.isConnected()) {
             this.connect();

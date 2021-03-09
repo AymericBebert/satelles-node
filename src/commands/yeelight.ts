@@ -1,6 +1,6 @@
-import {ICommand} from '../model/satelles';
-import {Yeelight} from '../ts-yeelight-wifi/yeelight';
-import {rgb2temp} from '../ts-yeelight-wifi/color-temp';
+import { ICommand } from '../model/satelles';
+import { rgb2temp } from '../ts-yeelight-wifi/color-temp';
+import { Yeelight } from '../ts-yeelight-wifi/yeelight';
 
 export function yeelightCommands(yl: Yeelight | null): ICommand[] {
     if (yl === null) {
@@ -27,7 +27,7 @@ export function yeelightCommands(yl: Yeelight | null): ICommand[] {
                     name: 'Brightness',
                     type: 'number',
                     numberValue: yl.bright,
-                    numberMin: 0,
+                    numberMin: 1,
                     numberMax: 100,
                     numberStep: 1,
                 },

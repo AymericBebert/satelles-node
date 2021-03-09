@@ -1,9 +1,9 @@
-import {fromEvent, Observable} from 'rxjs';
-import {FromEventTarget} from 'rxjs/internal/observable/fromEvent';
-import {tap} from 'rxjs/operators';
-import {IAnnounce, ICommand} from './model/satelles';
-import {Socket} from 'socket.io-client';
-import {IImperiumAction} from './model/imperium';
+import { fromEvent, Observable } from 'rxjs';
+import { FromEventTarget } from 'rxjs/internal/observable/fromEvent';
+import { tap } from 'rxjs/operators';
+import { Socket } from 'socket.io-client';
+import { IImperiumAction } from './model/imperium';
+import { IAnnounce, ICommand } from './model/satelles';
 
 
 export interface ReceivedEventTypes {

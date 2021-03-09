@@ -1,12 +1,19 @@
 import fs from 'fs'
-import {BehaviorSubject, interval, of, Subject} from 'rxjs';
-import {delay, distinctUntilChanged, filter, map, startWith, switchMap, take, takeUntil, tap} from 'rxjs/operators';
-import {io, Socket} from 'socket.io-client';
-import {load} from 'js-yaml';
-import {RerumNodeConfig} from './config';
-import {emitEvent, fromEventTyped} from './events';
-import {getVolume, MACOS_CONTROLS_NAME, setVolume, volumeCommand} from './commands/macos-volume';
-import {yeelightCommands} from './commands/yeelight';
+import { load } from 'js-yaml';
+import { BehaviorSubject, interval, of, Subject } from 'rxjs';
+import { delay, distinctUntilChanged, filter, map, startWith, switchMap, take, takeUntil, tap } from 'rxjs/operators';
+import { io, Socket } from 'socket.io-client';
+import {
+    getVolume,
+    MACOS_CONTROLS_NAME,
+    MACOS_SLEEP_NAME,
+    macosCommands,
+    sendToSleep,
+    setVolume
+} from './commands/macos-commands';
+import { yeelightCommands } from './commands/yeelight';
+import { RerumNodeConfig } from './config';
+import { emitEvent, fromEventTyped } from './events';
 import {
     LightSetBrightMessage,
     LightSetCtMessage,
@@ -14,10 +21,10 @@ import {
     LightSetPowerMessage,
     LightSetRgbMessage
 } from './model/light-messages';
-import {ICommand} from './model/satelles';
-import {Lookup} from './ts-yeelight-wifi/lookup';
-import {Yeelight} from './ts-yeelight-wifi/yeelight';
-import {configuration, version} from './version';
+import { ICommand } from './model/satelles';
+import { Lookup } from './ts-yeelight-wifi/lookup';
+import { Yeelight } from './ts-yeelight-wifi/yeelight';
+import { configuration, version } from './version';
 
 console.log(`Starting satelles-node version ${version}, configuration ${configuration}...`)
 
@@ -63,7 +70,7 @@ fromEventTyped(socket, 'connect').subscribe(() => {
             id: deviceId,
             name: deviceName,
             commands: [
-                ...(config.commands.indexOf('macos') > -1 ? [volumeCommand(0)] : []),
+                ...(config.commands.indexOf('macos') > -1 ? macosCommands(0) : []),
                 ...(config.commands.indexOf('yeelight') > -1 ? yeelightCommands(ylState) : []),
             ],
         },
@@ -81,7 +88,7 @@ fromEventTyped(socket, 'connect').subscribe(() => {
                 map(() => {
                     const ylState = Object.values(curLightState$.getValue())[0] || null
                     return [
-                        ...(config.commands.indexOf('macos') > -1 ? [volumeCommand(curVolume)] : []),
+                        ...(config.commands.indexOf('macos') > -1 ? macosCommands(curVolume) : []),
                         ...(config.commands.indexOf('yeelight') > -1 ? yeelightCommands(ylState) : []),
                     ];
                 }),
@@ -98,7 +105,7 @@ fromEventTyped(socket, 'connect').subscribe(() => {
             .pipe(
                 map(states => Object.values(states)[0] || null),
                 map(yl => [
-                    ...(config.commands.indexOf('macos') > -1 ? [volumeCommand(curVolume)] : []),
+                    ...(config.commands.indexOf('macos') > -1 ? macosCommands(curVolume) : []),
                     ...(config.commands.indexOf('yeelight') > -1 ? yeelightCommands(yl) : []),
                 ]),
                 distinctUntilChanged(commandsComparison),
@@ -116,6 +123,10 @@ fromEventTyped(socket, 'imperium action').subscribe(action => {
                     setVolume(arg?.numberValue ?? 10);
                 }
             });
+            break;
+
+        case MACOS_SLEEP_NAME :
+            sendToSleep();
             break;
 
         case 'YL Turn On':
