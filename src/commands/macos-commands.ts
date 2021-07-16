@@ -1,11 +1,11 @@
-import { exec } from 'child_process';
-import { ICommand } from '../model/satelles';
+import {exec} from 'child_process';
+import {ICommand} from '../model/satelles';
 
 export const MACOS_CONTROLS_NAME = 'macOS Controls';
 
 export function getVolume(): Promise<number | null> {
     return new Promise<number | null>((resolve, reject) => {
-        exec('osascript -e \'get volume settings\'', (error, stdout,) => {
+        exec('osascript -e \'get volume settings\'', (error, stdout) => {
             if (!error) {
                 const volMatch = /output volume:(\d+),/.exec(stdout)?.[1];
                 if (volMatch) {
@@ -17,7 +17,7 @@ export function getVolume(): Promise<number | null> {
                 reject(error);
             }
         });
-    })
+    });
 }
 
 export function setVolume(volume: number): void {

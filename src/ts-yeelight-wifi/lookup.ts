@@ -1,7 +1,7 @@
-import { EventEmitter } from 'events';
+import {EventEmitter} from 'events';
 import arp from 'node-arp';
-import ssdp, { SsdpHeaders } from 'node-ssdp';
-import { Yeelight } from './yeelight';
+import ssdp, {SsdpHeaders} from 'node-ssdp';
+import {Yeelight} from './yeelight';
 
 // const PORT_SCAN_TIMEOUT = 10000;
 // const SEARCH_INTERVAL = 10000;

@@ -1,45 +1,30 @@
-import fs from 'fs'
-import { load } from 'js-yaml';
-import { BehaviorSubject, interval, of, Subject } from 'rxjs';
-import { delay, distinctUntilChanged, filter, map, startWith, switchMap, take, takeUntil, tap } from 'rxjs/operators';
-import { io, Socket } from 'socket.io-client';
+import {BehaviorSubject, interval, of, Subject} from 'rxjs';
+import {delay, distinctUntilChanged, filter, map, startWith, switchMap, take, takeUntil, tap} from 'rxjs/operators';
+import {io, Socket} from 'socket.io-client';
 import {
     getVolume,
     MACOS_CONTROLS_NAME,
     MACOS_SLEEP_NAME,
     macosCommands,
     sendToSleep,
-    setVolume
+    setVolume,
 } from './commands/macos-commands';
-import { yeelightCommands } from './commands/yeelight';
-import { RerumNodeConfig } from './config';
-import { emitEvent, fromEventTyped } from './events';
+import {yeelightCommands} from './commands/yeelight';
+import {config} from './config';
+import {emitEvent, fromEventTyped} from './events';
 import {
     LightSetBrightMessage,
     LightSetCtMessage,
     LightSetHsvMessage,
     LightSetPowerMessage,
-    LightSetRgbMessage
+    LightSetRgbMessage,
 } from './model/light-messages';
-import { ICommand } from './model/satelles';
-import { Lookup } from './ts-yeelight-wifi/lookup';
-import { Yeelight } from './ts-yeelight-wifi/yeelight';
-import { configuration, version } from './version';
+import {ICommand} from './model/satelles';
+import {Lookup} from './ts-yeelight-wifi/lookup';
+import {Yeelight} from './ts-yeelight-wifi/yeelight';
 
-console.log(`Starting satelles-node version ${version}, configuration ${configuration}...`)
-
-// Ugly config load
-const config = load(fs.readFileSync(`${__dirname}/../config.yml`, 'utf8')) as RerumNodeConfig;
-
-// Get config from env
-const serverUrl = process.env.SERVER_URL || config.hub.serverUrl;
-const roomToken = process.env.ROOM_TOKEN || config.hub.roomToken;
-const roomName = process.env.ROOM_NAME || config.hub.roomName;
-const deviceId = process.env.DEVICE_ID || config.hub.deviceId;
-const deviceName = process.env.DEVICE_NAME || config.hub.deviceName;
-
-console.log(`Connecting to ${serverUrl}...`)
-const socket: Socket = io(serverUrl);
+console.log(`Starting satelles-node, connecting to ${config.hub.serverUrl}...`);
+const socket: Socket = io(config.hub.serverUrl);
 
 const commandsComparison = (c0: ICommand[], c1: ICommand[]) => JSON.stringify(c0) === JSON.stringify(c1);
 const yeelightState = (yl: Yeelight) => ({
@@ -56,19 +41,19 @@ const yeelightStatesComparison = (s0: { [id: string]: Yeelight }, s1: { [id: str
 const connected$ = new Subject<void>();
 
 fromEventTyped(socket, 'connect').subscribe(() => {
-    console.log(`Connected to socket at ${serverUrl}`)
+    console.log(`Connected to socket at ${config.hub.serverUrl}`);
 
     connected$.next();
 
     let curVolume = 0;
-    const ylState = Object.values(curLightState$.getValue())[0] || null
+    const ylState = Object.values(curLightState$.getValue())[0] || null;
 
     emitEvent(socket, 'satelles join', {
-        token: roomToken,
-        roomName: roomName,
+        token: config.hub.roomToken,
+        roomName: config.hub.roomName,
         satelles: {
-            id: deviceId,
-            name: deviceName,
+            id: config.hub.deviceId,
+            name: config.hub.deviceName,
             commands: [
                 ...(config.commands.indexOf('macos') > -1 ? macosCommands(0) : []),
                 ...(config.commands.indexOf('yeelight') > -1 ? yeelightCommands(ylState) : []),
@@ -86,7 +71,7 @@ fromEventTyped(socket, 'connect').subscribe(() => {
                     }
                 }),
                 map(() => {
-                    const ylState = Object.values(curLightState$.getValue())[0] || null
+                    const ylState = Object.values(curLightState$.getValue())[0] || null;
                     return [
                         ...(config.commands.indexOf('macos') > -1 ? macosCommands(curVolume) : []),
                         ...(config.commands.indexOf('yeelight') > -1 ? yeelightCommands(ylState) : []),
@@ -111,7 +96,7 @@ fromEventTyped(socket, 'connect').subscribe(() => {
                 distinctUntilChanged(commandsComparison),
                 takeUntil(connected$),
             )
-            .subscribe(commands => emitEvent(socket, 'satelles update', commands))
+            .subscribe(commands => emitEvent(socket, 'satelles update', commands));
     }
 });
 
@@ -172,14 +157,14 @@ curLightState$
             console.log('YL States is empty');
             return;
         }
-        console.log(`YL States of the ${Object.keys(cls).length} entries:`)
+        console.log(`YL States of the ${Object.keys(cls).length} entries:`);
         Object.keys(cls).forEach(k => {
             const l = cls[k];
             const rgb = `R ${Math.round(l.rgb.r)}, G ${Math.round(l.rgb.g)}, B ${Math.round(l.rgb.b)}`;
             console.log(`YL State of ${k}: power ${l.power ? 'ON' : 'OFF'}, ${rgb}`);
         });
         console.log('-----');
-    })
+    });
 
 // Utils for lights
 
@@ -271,8 +256,8 @@ lookup$.subscribe(() => {
             curLightState$.next(
                 Object.keys(oldState)
                     .filter(key => key !== light.id)
-                    .reduce((obj, key) => ({...obj, [key]: oldState[key]}), {})
-            )
+                    .reduce((obj, key) => ({...obj, [key]: oldState[key]}), {}),
+            );
             connectedLights$.next(look.pruneLights());
             exited$.next();
             exited$.complete();

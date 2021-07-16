@@ -10,6 +10,3 @@ stash
 # MacOS files
 .DS_Store
 ._*
-
-# Env
-.env

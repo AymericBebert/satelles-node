@@ -8,3 +8,6 @@ hub:
 commands:
   - macos
   - yeelight
+
+misc:
+  debugSocket: false

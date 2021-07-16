@@ -1,10 +1,9 @@
 import Color from 'color';
-import { EventEmitter } from 'events';
+import {EventEmitter} from 'events';
 import net from 'net';
-import { SsdpHeaders } from 'node-ssdp';
-import { fromEvent, Observable } from 'rxjs';
-import { FromEventTarget } from 'rxjs/internal/observable/fromEvent';
-import { temp2rgb } from './color-temp';
+import {SsdpHeaders} from 'node-ssdp';
+import {fromEvent, Observable} from 'rxjs';
+import {temp2rgb} from './color-temp';
 
 const REQUEST_TIMEOUT = 5000;
 const HEARTBEAT_INTERVAL = 10000;
@@ -352,7 +351,7 @@ export class Yeelight extends EventEmitter {
     }
 
     public fromEvent<T extends keyof YeelightEventTypes>(eventName: T): Observable<YeelightEventTypes[T]> {
-        return fromEvent(this as FromEventTarget<YeelightEventTypes[T]>, eventName);
+        return fromEvent(this as any, eventName);
         // .pipe(tap(data => console.log(`yeelight> ${eventName}:`, data)));
     }
 

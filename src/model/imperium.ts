@@ -1,4 +1,4 @@
-import { CommandArgType } from './satelles';
+import {CommandArgType} from './satelles';
 
 export interface IArgValue {
     name: string;

@@ -1,6 +1,6 @@
-import { ICommand } from '../model/satelles';
-import { rgb2temp } from '../ts-yeelight-wifi/color-temp';
-import { Yeelight } from '../ts-yeelight-wifi/yeelight';
+import {ICommand} from '../model/satelles';
+import {rgb2temp} from '../ts-yeelight-wifi/color-temp';
+import {Yeelight} from '../ts-yeelight-wifi/yeelight';
 
 export function yeelightCommands(yl: Yeelight | null): ICommand[] {
     if (yl === null) {
