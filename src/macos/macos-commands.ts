@@ -1,7 +1,4 @@
 import {exec} from 'child_process';
-import {ICommand} from '../model/satelles';
-
-export const MACOS_CONTROLS_NAME = 'macOS Controls';
 
 export function getVolume(): Promise<number | null> {
     return new Promise<number | null>((resolve, reject) => {
@@ -21,34 +18,11 @@ export function getVolume(): Promise<number | null> {
 }
 
 export function setVolume(volume: number): void {
+    console.log('ACTION: setVolume ', volume);
     exec(`osascript -e 'set volume output volume ${volume} --100%'`);
 }
 
-export const MACOS_SLEEP_NAME = 'Sleep';
-
 export function sendToSleep(): void {
+    console.log('ACTION: sendToSleep');
     exec('pmset sleepnow');
-}
-
-export function macosCommands(curVolume: number): ICommand[] {
-    return [
-        {
-            name: MACOS_CONTROLS_NAME,
-            type: 'complex',
-            args: [
-                {
-                    name: 'Volume',
-                    type: 'number',
-                    numberValue: curVolume,
-                    numberMin: 0,
-                    numberMax: 100,
-                    numberStep: 1,
-                },
-            ],
-        },
-        {
-            name: MACOS_SLEEP_NAME,
-            type: 'action',
-        },
-    ];
 }

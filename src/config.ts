@@ -9,7 +9,7 @@ type RerumNodeConfig = {
         deviceId: string;
         deviceName: string;
     };
-    commands: ('macos' | 'yeelight')[];
+    commands: string[];
     misc: {
         debugSocket: boolean;
     };
