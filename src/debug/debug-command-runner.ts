@@ -1,5 +1,5 @@
 import {Observable, Subject} from 'rxjs';
-import {map, startWith, takeUntil} from 'rxjs/operators';
+import {map, startWith} from 'rxjs/operators';
 import {CommandRunner} from '../model/command-runner';
 import {IImperiumAction} from '../model/imperium';
 import {ICommand} from '../model/satelles';
