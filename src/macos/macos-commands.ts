@@ -18,7 +18,7 @@ export function getVolume(): Promise<number | null> {
 }
 
 export function setVolume(volume: number): void {
-    console.log('ACTION: setVolume ', volume);
+    console.log('ACTION: setVolume', volume);
     exec(`osascript -e 'set volume output volume ${volume} --100%'`);
 }
 

@@ -11,5 +11,9 @@ export interface CommandRunner {
 
     init(): void
 
+    connect(): void
+
+    disconnect(): void
+
     onAction(action: IImperiumAction): void
 }

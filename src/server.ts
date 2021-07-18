@@ -23,6 +23,8 @@ fromEventTyped(socket, 'connect').subscribe(() => {
     console.log(`Connected to socket at ${config.hub.serverUrl}`);
 
     connected$.next();
+    commandRegister.disconnect();
+    commandRegister.connect();
 
     emitEvent(socket, 'satelles join', {
         token: config.hub.roomToken,
@@ -41,4 +43,8 @@ fromEventTyped(socket, 'connect').subscribe(() => {
     fromEventTyped(socket, 'imperium action')
         .pipe(takeUntil(connected$))
         .subscribe(action => commandRegister.onAction(action));
+
+    fromEventTyped(socket, 'disconnect')
+        .pipe(takeUntil(connected$))
+        .subscribe(() => commandRegister.disconnect());
 });

@@ -35,6 +35,18 @@ export class CommandRegister {
             .subscribe(commands => this.sendCommandUpdate$.next(commands));
     }
 
+    public connect(): void {
+        for (const runner of this.runners) {
+            runner.connect();
+        }
+    }
+
+    public disconnect(): void {
+        for (const runner of this.runners) {
+            runner.disconnect();
+        }
+    }
+
     public onAction(action: IImperiumAction): void {
         for (const runner of this.runners) {
             runner.onAction(action);

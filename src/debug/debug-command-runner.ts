@@ -6,7 +6,6 @@ import {ICommand} from '../model/satelles';
 
 export class DebugCommandRunner implements CommandRunner {
     private sendCommandUpdate$ = new Subject<void>();
-    private destroy$ = new Subject<void>();
 
     private actionNumber = 0;
     private stringValue = 'Bonsoir';
@@ -23,7 +22,6 @@ export class DebugCommandRunner implements CommandRunner {
         return this.sendCommandUpdate$.pipe(
             startWith(void 0),
             map(() => this.commands),
-            takeUntil(this.destroy$),
         );
     }
 
@@ -76,11 +74,20 @@ export class DebugCommandRunner implements CommandRunner {
     }
 
     public init(): void {
-        this.destroy$.next();
+        console.debug('Init');
+    }
+
+    public connect(): void {
+        console.debug('Connected');
+    }
+
+    public disconnect(): void {
+        console.debug('Disconnected');
     }
 
     public onAction(action: IImperiumAction): void {
-        console.log(action);
+        // console.log(action);
+
         switch (action.commandName) {
             case 'Action':
                 this.actionNumber += 1;

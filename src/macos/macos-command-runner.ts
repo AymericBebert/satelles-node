@@ -9,9 +9,10 @@ const MACOS_CONTROLS_NAME = 'macOS Controls';
 const MACOS_SLEEP_NAME = 'Sleep';
 
 export class MacOsCommandRunner implements CommandRunner {
-    private curVolume = 0;
     private sendCommandUpdate$ = new Subject<void>();
-    private destroy$ = new Subject<void>();
+    private disconnected$ = new Subject<void>();
+
+    private curVolume = 0;
 
     public get name(): string {
         return 'macos';
@@ -21,7 +22,6 @@ export class MacOsCommandRunner implements CommandRunner {
         return this.sendCommandUpdate$.pipe(
             startWith(void 0),
             map(() => this.commands),
-            takeUntil(this.destroy$),
         );
     }
 
@@ -49,12 +49,15 @@ export class MacOsCommandRunner implements CommandRunner {
     }
 
     public init(): void {
-        this.destroy$.next();
+        console.debug('Init');
+    }
+
+    public connect(): void {
         interval(10000)
             .pipe(
                 startWith(0),
                 switchMap(() => getVolume()),
-                takeUntil(this.destroy$),
+                takeUntil(this.disconnected$),
             )
             .subscribe(volume => {
                 if (volume !== null && volume !== this.curVolume) {
@@ -62,6 +65,10 @@ export class MacOsCommandRunner implements CommandRunner {
                     this.sendCommandUpdate$.next();
                 }
             });
+    }
+
+    public disconnect(): void {
+        this.disconnected$.next();
     }
 
     public onAction(action: IImperiumAction): void {

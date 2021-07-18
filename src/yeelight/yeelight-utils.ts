@@ -2,26 +2,11 @@ import {of} from 'rxjs';
 import {delay, tap} from 'rxjs/operators';
 import {Yeelight} from './ts-yeelight-wifi/yeelight';
 
-function yeelightState(yl: Yeelight): {
-    id: string,
-    power: boolean,
-    bright: number,
-    rgb: { r: number, g: number, b: number },
-} {
-    return {
-        id: yl.id,
-        power: yl.power,
-        bright: yl.bright,
-        rgb: yl.rgb,
-    };
-}
-
-function ylStatesHash(s: { [id: string]: Yeelight }): string {
-    return JSON.stringify(Object.values(s).map(y => yeelightState(y)));
-}
-
-export function yeelightStatesComparison(s0: { [id: string]: Yeelight }, s1: { [id: string]: Yeelight }): boolean {
-    return ylStatesHash(s0) === ylStatesHash(s1);
+export function rgbToHex(r: number, g: number, b: number): string {
+    const r1 = Math.round(r).toString(16);
+    const g1 = Math.round(g).toString(16);
+    const b1 = Math.round(b).toString(16);
+    return `#${r1.length === 1 ? `0${r1}` : r1}${g1.length === 1 ? `0${g1}` : g1}${b1.length === 1 ? `0${b1}` : b1}`;
 }
 
 export function onOperationSuccess(): void {
