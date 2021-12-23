@@ -25,7 +25,7 @@ interface YeelightState {
     bright: number;
     power: boolean;
     type: 'unknown' | 'white' | 'color';
-    rgb: { r: number; g: number; b: number }
+    rgb: { r: number; g: number; b: number };
 }
 
 interface YeelightSsdpData {
@@ -201,6 +201,7 @@ export class Yeelight extends EventEmitter {
         // data response
         this.socket.on('data', (data: any) => {
             this.lastAnswer = Date.now();
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
             this.parseResponse.bind(this)(data);
         });
 
@@ -351,6 +352,7 @@ export class Yeelight extends EventEmitter {
     }
 
     public fromEvent<T extends keyof YeelightEventTypes>(eventName: T): Observable<YeelightEventTypes[T]> {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         return fromEvent(this as any, eventName);
         // .pipe(tap(data => console.log(`yeelight> ${eventName}:`, data)));
     }
@@ -518,19 +520,24 @@ export class Yeelight extends EventEmitter {
                     }
 
                     if ('power' in obj) {
+                        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
                         this.updatePower(obj.power);
                     }
 
                     if ('color_mode' in obj) {
                         if (obj.color_mode === '1' && 'rgb' in obj) {
+                            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
                             this.updateByRGB(obj.rgb, obj.bright);
                         } else if (obj.color_mode === '2' && 'ct' in obj) {
+                            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
                             this.updateCT(obj.ct, obj.bright);
                         } else if (obj.color_mode === '3' && 'hue' in obj && 'sat' in obj) {
+                            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
                             this.updateHSV(obj.hue, obj.sat, obj.bright);
                         }
                     } else {
                         if ('bright' in obj) {
+                            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
                             this.updateBright(obj.bright);
                         }
                     }

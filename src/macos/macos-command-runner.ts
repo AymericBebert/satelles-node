@@ -49,7 +49,7 @@ export class MacOsCommandRunner implements CommandRunner {
     }
 
     public init(): void {
-        console.debug('Init');
+        console.debug('MacOsCommandRunner init');
     }
 
     public connect(): void {

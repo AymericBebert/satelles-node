@@ -74,7 +74,7 @@ export class DebugCommandRunner implements CommandRunner {
     }
 
     public init(): void {
-        console.debug('Init');
+        console.debug('DebugCommandRunner init');
     }
 
     public connect(): void {
