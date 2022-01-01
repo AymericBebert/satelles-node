@@ -254,7 +254,6 @@ export class YeelightCommandRunner implements CommandRunner {
 
             case 'YL Control':
                 (action.args || []).forEach(arg => {
-                    console.log('arg:', arg);
                     if (arg.name == 'Brightness' && arg.numberValue) {
                         this.setBright$.next({bright: arg.numberValue, duration: 200});
                     }
