@@ -3,7 +3,7 @@ import {distinctUntilChanged, filter, map, startWith, take, takeUntil} from 'rxj
 import {CommandRunner} from '../model/command-runner';
 import {IImperiumAction} from '../model/imperium';
 import {ICommand} from '../model/satelles';
-import {rgb2temp} from './ts-yeelight-wifi/color-temp';
+import {hex2rgb, rgb2hex, rgb2temp} from './ts-yeelight-wifi/color-temp';
 import {Lookup} from './ts-yeelight-wifi/lookup';
 import {Yeelight} from './ts-yeelight-wifi/yeelight';
 import {
@@ -77,10 +77,15 @@ export class YeelightCommandRunner implements CommandRunner {
                     {
                         name: 'Temperature',
                         type: 'number',
-                        numberValue: rgb2temp([yl.rgb.r, yl.rgb.g, yl.rgb.b]),
+                        numberValue: rgb2temp(yl.rgb.r, yl.rgb.g, yl.rgb.b),
                         numberMin: 1700,
                         numberMax: 6500,
                         numberStep: 100,
+                    },
+                    {
+                        name: 'Color',
+                        type: 'color',
+                        colorValue: rgb2hex(yl.rgb.r, yl.rgb.g, yl.rgb.b),
                     },
                 ],
             },
@@ -249,11 +254,15 @@ export class YeelightCommandRunner implements CommandRunner {
 
             case 'YL Control':
                 (action.args || []).forEach(arg => {
-                    if (arg.name == 'Brightness') {
-                        this.setBright$.next({bright: arg.numberValue || 50, duration: 200});
+                    console.log('arg:', arg);
+                    if (arg.name == 'Brightness' && arg.numberValue) {
+                        this.setBright$.next({bright: arg.numberValue, duration: 200});
                     }
-                    if (arg.name == 'Temperature') {
-                        this.setCT$.next({ct: arg.numberValue || 2500, duration: 200});
+                    if (arg.name == 'Temperature' && arg.numberValue) {
+                        this.setCT$.next({ct: arg.numberValue, duration: 200});
+                    }
+                    if (arg.name == 'Color' && arg.colorValue) {
+                        this.setRGB$.next({rgb: hex2rgb(arg.colorValue), duration: 200});
                     }
                 });
                 break;
