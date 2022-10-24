@@ -187,21 +187,33 @@ export class YeelightCommandRunner implements CommandRunner {
 
                     this.setRGB$.pipe(filter(valueNotNull), takeUntil(exited$)).subscribe(data => {
                         console.log(`Set RGB: ${JSON.stringify(data)}`);
+                        if (!light.power) {
+                            light.setPower(true).then(onOperationSuccess).catch(onOperationFailed);
+                        }
                         light.setRGB(data.rgb, data.duration).then(onOperationSuccess).catch(onOperationFailed);
                     });
 
                     this.setHSV$.pipe(filter(valueNotNull), takeUntil(exited$)).subscribe(data => {
                         console.log(`Set HSV: ${JSON.stringify(data)}`);
+                        if (!light.power) {
+                            light.setPower(true).then(onOperationSuccess).catch(onOperationFailed);
+                        }
                         light.setHSV(data.hsv, data.duration).then(onOperationSuccess).catch(onOperationFailed);
                     });
 
                     this.setCT$.pipe(filter(valueNotNull), takeUntil(exited$)).subscribe(data => {
                         console.log(`Set CT: ${JSON.stringify(data)}`);
+                        if (!light.power) {
+                            light.setPower(true).then(onOperationSuccess).catch(onOperationFailed);
+                        }
                         light.setCT(data.ct, data.duration).then(onOperationSuccess).catch(onOperationFailed);
                     });
 
                     this.setBright$.pipe(filter(valueNotNull), takeUntil(exited$)).subscribe(data => {
                         console.log(`Set bright: ${JSON.stringify(data)}`);
+                        if (!light.power) {
+                            light.setPower(true).then(onOperationSuccess).catch(onOperationFailed);
+                        }
                         light.setBright(data.bright, data.duration).then(onOperationSuccess).catch(onOperationFailed);
                     });
 
