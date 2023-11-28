@@ -21,10 +21,11 @@
   "dependencies": {
     "color": "^4.2.3",
     "js-yaml": "^4.1.0",
-    "rxjs": "^7.5.5",
-    "socket.io-client": "~4.4.1",
+    "rxjs": "^7.8.1",
+    "socket.io-client": "~4.7.2",
     "node-arp": "~1.0.6",
     "node-ssdp": "~4.0.1",
+    "pigpio": "^3.3.1",
     "portscanner": "~2.2.0"
   },
   "devDependencies": {
