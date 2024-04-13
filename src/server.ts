@@ -6,45 +6,57 @@ import {config} from './config';
 import {emitEvent, fromEventTyped} from './events';
 import {commandRunnerFactory} from './modules';
 
-const commandRegister = new CommandRegister();
-for (const command of config.commands) {
-    const runner = commandRunnerFactory(command);
-    if (runner) {
-        commandRegister.registerRunner(runner);
+async function main(): Promise<void> {
+    const commandRegister = new CommandRegister();
+    for (const command of config.commands) {
+        const runner = await commandRunnerFactory(command);
+        if (runner) {
+            commandRegister.registerRunner(runner);
+        }
     }
+
+    console.log(`Starting satelles-node, connecting to ${config.hub.serverUrl}...`);
+    const socket: Socket = io(config.hub.serverUrl);
+
+    const connected$ = new Subject<void>();
+
+    fromEventTyped(socket, 'connect').subscribe(() => {
+        console.log(`Connected to socket at ${config.hub.serverUrl}`);
+
+        connected$.next();
+        commandRegister.disconnect();
+        commandRegister.connect();
+
+        emitEvent(socket, 'satelles join', {
+            token: config.hub.roomToken,
+            roomName: config.hub.roomName,
+            satelles: {
+                id: config.hub.deviceId,
+                name: config.hub.deviceName,
+                commands: commandRegister.commands,
+            },
+        });
+
+        commandRegister.commandsUpdate$
+            .pipe(takeUntil(connected$))
+            .subscribe(commands => emitEvent(socket, 'satelles update', commands));
+
+        fromEventTyped(socket, 'imperium action')
+            .pipe(takeUntil(connected$))
+            .subscribe(action => commandRegister.onAction(action));
+
+        fromEventTyped(socket, 'disconnect')
+            .pipe(takeUntil(connected$))
+            .subscribe(() => commandRegister.disconnect());
+    });
 }
 
-console.log(`Starting satelles-node, connecting to ${config.hub.serverUrl}...`);
-const socket: Socket = io(config.hub.serverUrl);
-
-const connected$ = new Subject<void>();
-
-fromEventTyped(socket, 'connect').subscribe(() => {
-    console.log(`Connected to socket at ${config.hub.serverUrl}`);
-
-    connected$.next();
-    commandRegister.disconnect();
-    commandRegister.connect();
-
-    emitEvent(socket, 'satelles join', {
-        token: config.hub.roomToken,
-        roomName: config.hub.roomName,
-        satelles: {
-            id: config.hub.deviceId,
-            name: config.hub.deviceName,
-            commands: commandRegister.commands,
-        },
+main()
+    .then(() => {
+        console.log('started');
+    })
+    .catch(err => {
+        console.error('failed');
+        console.error(err);
+        process.exit(1);
     });
-
-    commandRegister.commandsUpdate$
-        .pipe(takeUntil(connected$))
-        .subscribe(commands => emitEvent(socket, 'satelles update', commands));
-
-    fromEventTyped(socket, 'imperium action')
-        .pipe(takeUntil(connected$))
-        .subscribe(action => commandRegister.onAction(action));
-
-    fromEventTyped(socket, 'disconnect')
-        .pipe(takeUntil(connected$))
-        .subscribe(() => commandRegister.disconnect());
-});

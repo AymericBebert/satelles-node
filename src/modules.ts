@@ -1,18 +1,19 @@
-import {DebugCommandRunner} from './debug/debug-command-runner';
-import {MacOsCommandRunner} from './macos/macos-command-runner';
-import {CommandRunner} from './model/command-runner';
-import {YeelightCommandRunner} from './yeelight/yeelight-command-runner';
+import type {CommandRunner} from './model/command-runner';
 
-export function commandRunnerFactory(name: string): CommandRunner | null {
-    switch (name) {
-        case 'debug':
-            return new DebugCommandRunner();
-        case 'macos':
-            return new MacOsCommandRunner();
-        case 'yeelight':
-            return new YeelightCommandRunner();
-        default:
-            console.error('No module with name:', name);
-            return null;
+export async function commandRunnerFactory(name: string): Promise<CommandRunner> {
+    if (name === 'debug') {
+        const module = await import('./debug/debug-command-runner');
+        return new module.DebugCommandRunner();
+    } else if (name === 'macos') {
+        const module = await import('./macos/macos-command-runner');
+        return new module.MacOsCommandRunner();
+    } else if (name === 'yeelight') {
+        const module = await import('./yeelight/yeelight-command-runner');
+        return new module.YeelightCommandRunner();
+    } else if (name === 'heater') {
+        const module = await import('./heater/heater-command-runner');
+        return new module.HeaterCommandRunner();
+    } else {
+        throw new Error(`No module with name: ${name}`);
     }
 }
