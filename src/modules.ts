@@ -13,6 +13,9 @@ export async function commandRunnerFactory(name: string): Promise<CommandRunner>
     } else if (name === 'heater') {
         const module = await import('./heater/heater-command-runner');
         return new module.HeaterCommandRunner();
+    } else if (name === 'hue') {
+        const module = await import('./hue/hue-command-runner');
+        return new module.HueCommandRunner();
     } else {
         throw new Error(`No module with name: ${name}`);
     }

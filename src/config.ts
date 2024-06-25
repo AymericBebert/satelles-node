@@ -1,5 +1,6 @@
 import fs from 'fs';
 import {load} from 'js-yaml';
+import {HueScenario} from './hue/model';
 
 type RerumNodeConfig = {
     hub: {
@@ -12,6 +13,9 @@ type RerumNodeConfig = {
     commands: string[];
     misc: {
         debugSocket: boolean;
+    };
+    hue?: {
+        scenarios: HueScenario[];
     };
 }
 
