@@ -31,14 +31,6 @@ export class HueCommandRunner implements CommandRunner {
                 name: 'Philips Hue',
                 type: 'info',
             },
-            {
-                name: 'On',
-                type: 'action',
-            },
-            {
-                name: 'Off',
-                type: 'action',
-            },
             ...[...this.scenarioNames].map(name => ({
                 name,
                 type: 'action' as const,
@@ -106,28 +98,40 @@ export class HueCommandRunner implements CommandRunner {
     }
 
     public onAction(action: IImperiumAction): void {
+        this._onAction(action).catch(err => console.error('Could not handle action', err));
+    }
+
+    private async _onAction(action: IImperiumAction): Promise<void> {
         const knownScenario = this.scenarios.get(action.commandName);
         if (knownScenario) {
             for (const client of this.clients) {
                 const lamp = knownScenario.lamps.find(lamp => lamp.name === client.peripheral.advertisement.localName);
                 if (lamp) {
-                    client.setBrightness(lamp.brightness).catch(err => console.error('Could not set brightness', err));
-                    client.setTemperature(lamp.temperature).catch(err => console.error('Could not set temperature', err));
+                    const clientIsOn = await client.isOn();
+                    if (lamp.on && !clientIsOn) {
+                        await client.on();
+                    } else if (!lamp.on && clientIsOn) {
+                        await client.off();
+                    }
+                    if (lamp.on) {
+                        await client.setBrightness(lamp.brightness);
+                        await client.setTemperature(lamp.temperature);
+                    }
                 }
             }
         } else if (action.commandName === 'Hue Control') {
-            (action.args || []).forEach(arg => {
+            for (const arg of (action.args || [])) {
                 if (arg.name == 'Brightness' && arg.numberValue) {
                     for (const client of this.clients) {
-                        client.setBrightness(arg.numberValue).catch(err => console.error('Could not set brightness', err));
+                        await client.setBrightness(arg.numberValue);
                     }
                 }
                 if (arg.name == 'Temperature' && arg.numberValue) {
                     for (const client of this.clients) {
-                        client.setTemperature(arg.numberValue).catch(err => console.error('Could not set temperature', err));
+                        await client.setTemperature(arg.numberValue);
                     }
                 }
-            });
+            }
         }
     }
 }
