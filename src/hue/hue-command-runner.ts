@@ -1,5 +1,6 @@
 import {Peripheral} from '@abandonware/noble';
 import {concatMap, Observable, of, Subject} from 'rxjs';
+import {filter} from 'rxjs/operators';
 import {config} from '../config';
 import {CommandRunner} from '../model/command-runner';
 import {IImperiumAction} from '../model/imperium';
@@ -71,8 +72,13 @@ export class HueCommandRunner implements CommandRunner {
                     .then(lampName => {
                         console.log('Connected to', lampName);
                         return client;
+                    })
+                    .catch(err => {
+                        console.error('Could not connect to lamp', err);
+                        return null;
                     });
             }),
+            filter(client => client !== null),
         ).subscribe(client => {
             this.clients.push(client);
             // client.getBrightness();
