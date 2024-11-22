@@ -1,5 +1,6 @@
 import {Gpio} from 'pigpio';
-import {Observable, of} from 'rxjs';
+import {Observable, Subject} from 'rxjs';
+import {map, startWith} from 'rxjs/operators';
 import {CommandRunner} from '../model/command-runner';
 import {IImperiumAction} from '../model/imperium';
 import {ICommand} from '../model/satelles';
@@ -12,19 +13,24 @@ import {signals as standbySignal} from './pulsefiles/standby_070_r';
 export class HeaterCommandRunner implements CommandRunner {
     private readonly outPin = 13;
     private readonly output: Gpio = new Gpio(this.outPin, {mode: Gpio.OUTPUT});
+    private readonly sendCommandUpdate$ = new Subject<void>();
+    private lastMode = '';
 
     public get name(): string {
         return 'heater';
     }
 
     public get commandsUpdate$(): Observable<ICommand[]> {
-        return of(this.commands);
+        return this.sendCommandUpdate$.pipe(
+            startWith(void 0),
+            map(() => this.commands),
+        );
     }
 
     public get commands(): ICommand[] {
         return [
             {
-                name: 'Radiateur',
+                name: `Radiateur${this.lastMode ? ` (${this.lastMode})` : ''}`,
                 type: 'info',
             },
             {
@@ -71,5 +77,7 @@ export class HeaterCommandRunner implements CommandRunner {
                 sendPulses(this.outPin, standbySignal);
                 break;
         }
+        this.lastMode = action.commandName;
+        this.sendCommandUpdate$.next();
     }
 }
