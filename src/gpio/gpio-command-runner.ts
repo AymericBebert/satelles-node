@@ -18,7 +18,7 @@ export class GpioCommandRunner implements CommandRunner {
 
     private readonly gpios: GpioRuntimeInfo[] = (config.gpio || []).map(c => ({
         config: c,
-        gpio: new Gpio(c.pin, {mode: Gpio.OUTPUT}),
+        gpio: new Gpio(c.pin),
         state: c.initialValue as 0 | 1 ?? 0,
     }));
 
