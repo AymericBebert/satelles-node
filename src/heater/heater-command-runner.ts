@@ -76,6 +76,8 @@ export class HeaterCommandRunner implements CommandRunner {
             case 'Standby':
                 sendPulses(this.outPin, standbySignal);
                 break;
+            default:
+                return;
         }
         this.lastMode = action.commandName;
         this.sendCommandUpdate$.next();

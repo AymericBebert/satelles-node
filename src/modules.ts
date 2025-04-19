@@ -4,6 +4,9 @@ export async function commandRunnerFactory(name: string): Promise<CommandRunner>
     if (name === 'debug') {
         const module = await import('./debug/debug-command-runner');
         return new module.DebugCommandRunner();
+    } else if (name === 'gpio') {
+        const module = await import('./gpio/gpio-command-runner');
+        return new module.GpioCommandRunner();
     } else if (name === 'macos') {
         const module = await import('./macos/macos-command-runner');
         return new module.MacOsCommandRunner();

@@ -1,5 +1,6 @@
 import fs from 'fs';
 import {load} from 'js-yaml';
+import {GpioConfig} from './gpio/gpio-model';
 
 type RerumNodeConfig = {
     hub: {
@@ -13,6 +14,7 @@ type RerumNodeConfig = {
     misc: {
         debugSocket: boolean;
     };
+    gpio?: GpioConfig[];
 }
 
 // Ugly config load
