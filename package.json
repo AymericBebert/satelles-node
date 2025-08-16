@@ -29,7 +29,6 @@
     "socket.io-client": "~4.8.1"
   },
   "devDependencies": {
-    "@types/color": "^4.2.0",
     "@types/jest": "^30.0.0",
     "@types/js-yaml": "^4.0.9",
     "@types/node-ssdp": "^4.0.4",

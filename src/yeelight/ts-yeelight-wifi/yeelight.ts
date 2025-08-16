@@ -1,4 +1,4 @@
-import Color from 'color';
+import Color, {ColorInstance} from 'color';
 import {EventEmitter} from 'events';
 import net from 'net';
 import {SsdpHeaders} from 'node-ssdp';
@@ -380,7 +380,7 @@ export class Yeelight extends EventEmitter {
         }
     }
 
-    private updateColor(rgbColor: Color<number>, bright?: string): void {
+    private updateColor(rgbColor: ColorInstance, bright?: string): void {
         const hsv = rgbColor.hsv();
 
         this.rgb.r = rgbColor.red();
