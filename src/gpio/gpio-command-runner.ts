@@ -15,6 +15,7 @@ interface GpioRuntimeInfo {
 
 export class GpioCommandRunner implements CommandRunner {
     private readonly sendCommandUpdate$ = new Subject<void>();
+    private readonly gpioTimeouts: Record<string, ReturnType<typeof setTimeout>> = {};
 
     private readonly gpios: GpioRuntimeInfo[] = (config.gpio || []).map(c => ({
         config: c,
@@ -68,6 +69,7 @@ export class GpioCommandRunner implements CommandRunner {
         } else if (action.commandName.endsWith(' OFF')) {
             const gpioName = action.commandName.slice(0, -4);
             const gpio = this.gpios.find(g => g.config.name === gpioName);
+            this.clearGpioTimeout(gpioName);
             this.writeGpio(gpio, 0);
         } else {
             const hoursMatch = action.commandName.match(/ (\d+)h$/);
@@ -78,7 +80,8 @@ export class GpioCommandRunner implements CommandRunner {
                     const hours = parseInt(hoursMatch[1], 10);
                     const duration = hours * 60 * 60 * 1000;
                     this.writeGpio(gpio, 1);
-                    setTimeout(() => {
+                    this.clearGpioTimeout(gpioName);
+                    this.gpioTimeouts[gpioName] = setTimeout(() => {
                         this.writeGpio(gpio, 0);
                         this.sendCommandUpdate$.next();
                     }, duration);
@@ -103,5 +106,13 @@ export class GpioCommandRunner implements CommandRunner {
             gpio.gpio.digitalWrite(gpio.config.invert ? 1 - value : value);
         }
         gpio.state = value;
+    }
+
+    private clearGpioTimeout(gpioName: string): void {
+        const timeout = this.gpioTimeouts[gpioName];
+        if (timeout) {
+            clearTimeout(timeout);
+            delete this.gpioTimeouts[gpioName];
+        }
     }
 }
